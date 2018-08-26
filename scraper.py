@@ -124,8 +124,6 @@ class web_scraper:
                                          'name':name,
                                          'href':href,
                                          'location':location,
-                                         #'raised':raised,
-                                         #'goal':goal,
                                          'raised':details['raised'],
                                          'goal':details['goal'],
                                          'text':details['text'],
