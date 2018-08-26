@@ -12,13 +12,16 @@ from time import time
 from collections import defaultdict
 #from google.colab import files
 from collections import OrderedDict
+from datetime import datetime
+from itertools import accumulate
 import os
 
 class web_scraper:
     def __init__(self):
         self.url = 'https://www.gofundme.com/discover'
         self.campaign_columns = ['category','name','href','location','goal','raised',
-                   'text','likes','shares','photos','donation_count','duration','recent_donation_time']
+                               'text','likes','shares','photos','donation_count','duration',
+                                 'recent_donation_time','script_run_time']
 
     def get_categories(self):
         soup = requests.get(self.url)
@@ -42,19 +45,54 @@ class web_scraper:
 
         try: shares = soup.findAll(class_='js-share-count-text')[0].text.strip()
         except IndexError: shares = 0
-          
+        raised = 0
+        goal = 0
+        
         try: 
           donation = soup.findAll(class_='campaign-status text-small')[0].text.strip()
           recent_donation_time = soup.findAll(class_='supporter-time')[0].text.strip()
           donation = donation.split(' ')
           donation_count = donation[2]
           duration = ' '.join(donation[-2:])
+          funds  = soup.findAll('h2',class_='goal')[0].text
+          raised = re.findall('\$\d+.*',funds)[0]
+          goal = re.findall('\$\d+.*',funds)[1].split(' ')[0]
+          min_completion_time = self.get_min_goal_time(url,goal)
         except:
-          donation_count = duration = recent_donation_time = 0
+          donation_count = duration = recent_donation_time = raised = goal = min_completion_time = 0
 
         return({'text':text, 'likes':likes, 'photos':photos, 'shares':shares,
                 'donation_count':donation_count, 'duration':duration
-                ,'recent_donation_time':recent_donation_time})
+                ,'recent_donation_time':recent_donation_time,'raised':raised,
+                'goal':goal, 'min_completion_time':min_completion_time})
+
+    def get_min_goal_time(self,href,goal):
+        goal=int(re.sub('[^\d]','',goal))
+        campaign = href[25:]
+        idx = 0
+        min_completion_time = 0
+        donation = []
+        time_gap=[]
+        print(campaign,goal)
+        while True:
+            url = 'https://www.gofundme.com/mvc.php?route=donate/pagingDonationsFoundation&url='+campaign+'&idx='+str(idx)+'&type=recent'
+            soup = requests.get(url)
+            soup=bs(soup.text,'html.parser')
+            dn = [i.text for i in soup.findAll(class_='supporter-amount')]
+            if len(dn)<1:break
+            donation = donation + dn
+            time_gap = time_gap+ [i.text[:-4] for i in soup.findAll(class_='supporter-time')]
+            idx+=10
+            if idx%100==0:print('.',end='')
+        print('\n')
+        l=[int(re.sub('[^\d]','',i)) for i in donation[::-1]]
+        d=list(accumulate(l))
+        for i in range(len(d)):
+          if d[i]>g:
+            loc = i
+            break
+        print('step1 end')
+        return time_gap[-loc-1]
 
     def get_campaigns(self,categories = 'all'):
         start_time = time()
@@ -77,7 +115,7 @@ class web_scraper:
             name = [ hit.text  for hit in soup.findAll(attrs={'class' : 'fund-title truncate-single-line show-for-medium'})]
             href = [i['href'] for i in soup.findAll('a',attrs={'class':'campaign-tile-img--contain'})]
             location = [i.text[1:-1] for i in soup.findAll(class_='fund-item fund-location truncate-single-line')]
-
+            '''
             raised=[]
             goal=[]
             for k in soup.findAll(class_="fund-item truncate-single-line"):
@@ -87,7 +125,7 @@ class web_scraper:
               else:
                 raised.append(0)
                 goal.append(0)
-
+             '''
             details =defaultdict(list)
             for link in soup.findAll('a',attrs={'class':'campaign-tile-img--contain'}):
               for key, value in self.details_parser(link['href']).items():
@@ -96,18 +134,22 @@ class web_scraper:
             df = df.append(pd.DataFrame({'category':[i]*len(name),
                                          'name':name,
                                          'href':href,
-                                         'location':location, 
-                                         'goal':goal,
-                                         'raised':raised,
+                                         'location':location,
+                                         #'raised':raised,
+                                         #'goal':goal,
+                                         'raised':details['raised'],
+                                         'goal':details['goal'],
                                          'text':details['text'],
                                          'likes':details['likes'],
                                          'shares':details['shares'],
                                          'photos':details['photos'],
                                          'donation_count':details['donation_count'],
                                          'duration':details['duration'],
-                                         'recent_donation_time': details['recent_donation_time']}))
+                                         'recent_donation_time': details['recent_donation_time'],
+                                         'script_run_time':[datetime.today().strftime("%Y-%m-%d")]*len(name) }))
+            #print('-',end='')
             if (page%10==0):
-                print(page,end=' ')
+                print('\n',page,end=' ')
                 #break
             page+=1
           print('\n')
