@@ -108,7 +108,7 @@ class web_scraper:
                                          'recent_donation_time': details['recent_donation_time']}))
             if (page%10==0):
                 print(page,end=' ')
-                --break
+                #break
             page+=1
           print('\n')
         clear_output()
