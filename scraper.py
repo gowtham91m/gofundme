@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Scraper.ipynb
-author: Gowtham Mallikarjuna
 
-%%capture
-!pip install "requests[security]"
-"""
+#author: Gowtham Mallikarjuna
+
 
 from bs4 import BeautifulSoup as bs
 import requests
@@ -17,19 +14,18 @@ from collections import defaultdict
 from collections import OrderedDict
 import os
 
-path = 'G:\\My Drive\\codelab\\gofundme'
-os.chdir(path)
-
 class web_scraper:
     def __init__(self):
         self.url = 'https://www.gofundme.com/discover'
+        self.campaign_columns = ['category','name','href','location','goal','raised',
+                   'text','likes','shares','photos','donation_count','duration','recent_donation_time']
 
     def get_categories(self):
-        soup = requests.get(url)
+        soup = requests.get(self.url)
         soup = bs(soup.text,'html.parser')
         category = soup.findAll(class_='text-black')
         categories = [i.text for i in category]  
-        return categories[:8]
+        return categories[:16]
 
     def details_parser(self,url):
 
@@ -49,15 +45,18 @@ class web_scraper:
           
         try: 
           donation = soup.findAll(class_='campaign-status text-small')[0].text.strip()
+          recent_donation_time = soup.findAll(class_='supporter-time')[0].text.strip()
           donation = donation.split(' ')
           donation_count = donation[2]
           duration = ' '.join(donation[-2:])
         except:
           donation_count = duration = 0
 
-        return({'text':text, 'likes':likes, 'photos':photos, 'shares':shares, 'donation_count':donation_count, 'duration':duration})
+        return({'text':text, 'likes':likes, 'photos':photos, 'shares':shares,
+                'donation_count':donation_count, 'duration':duration
+                ,'recent_donation_time':recent_donation_time})
 
-    def scrape(self,categories = 'all'):
+    def get_campaigns(self,categories = 'all'):
         start_time = time()
         df = pd.DataFrame({})
         if categories == 'all':
@@ -105,75 +104,31 @@ class web_scraper:
                                          'shares':details['shares'],
                                          'photos':details['photos'],
                                          'donation_count':details['donation_count'],
-                                         'duration':details['duration']}))
+                                         'duration':details['duration'],
+                                         'recent_donation_time': details['recent_donation_time']}))
             if (page%10==0):print(page,end=' ')
             page+=1
           print('\n')
         clear_output()
-        columns = ['category','name','href','location','goal','raised','text','likes','shares','photos','donation_count','duration']
         print('campaigns scrape time', time()-start_time)
-        return df[columns]
+        return df[self.campaign_columns]
 
-    def get_donation_amount(self,href):
-    #start_time = time()
-        donation_data = pd.DataFrame({})
-        campaign = href[25:]
-        idx = 0
-        count = 0
-        print(href)
-        while True:
-            url = 'https://www.gofundme.com/mvc.php?route=donate/pagingDonationsFoundation&url='+campaign+'&idx='+str(idx)+'&type=recent'
-            soup = requests.get(url)
-            soup=bs(soup.text,'html.parser')
-            donation = [i.text for i in soup.findAll(class_='supporter-amount')]
-            if len(donation)<1:break
-            time_gap = [i.text[:-4] for i in soup.findAll(class_='supporter-time')]
-            donation_data = donation_data.append(pd.DataFrame({'href':[href]*len(donation),
-                                                               'donation_amount':donation,
-                                                               'time':time_gap}))
-            idx+=10
-            if ((count-10)%100==0):print(donation_data.shape[0],end=' ')
-            count+=1
-        #clear_output()
-        #print('donation amount scrape time', time()-start_time)
-        columns = ['href','donation_amount','time']
-        return donation_data[columns]
-
-    def update_donations(self,df):
-        donation_href_unique = []
-        donations = pd.DataFrame({'href':[],'donation_amount':[],'time':[]})
-        donations = donations[['href','donation_amount','time']]
-        if 'donations.csv' not in os.listdir():
-            donations.to_csv('donations.csv')
+    def scrape(self,path):
+        os.chdir(path)
+        campaign_data = pd.DataFrame({i:[] for i in self.campaign_columns})
+        if 'campaigns.csv' not in os.listdir():
+            campaign_data.to_csv('campaigns.csv',index=False)
         else:
-            count = 1
-            for i in  pd.read_csv('donations.csv',chunksize=1000000):
-                print('reading chunk ',count)
-                for k in i.href.unique():
-                    if k not in donation_href_unique:
-                        donation_href_unique.append(k)
+            campaign_data = pd.read_csv('campaigns.csv')
+            
+            for i in self.get_categories():
+                if i not in campaign_data.category.unique():
+                    campaigns = self.get_campaigns([i])
+                    campaigns.to_csv('campaigns.csv',mode='a',index=False,header=False)
 
-        count = 0
-        for a in df.href:
-            start_time = time()
-            if a not in donation_href_unique:
-                donations = donations.append(self.get_donation_amount(a))
-                donations.to_csv('donations.csv',mode='a',index=False,header=False)
-            count +=1
-            print(count,' ',round(time()-start_time))
+if __name__ == '__main__':
+    path = os.getcwd()
+    web_scraper().scrape(path)    
 
-    
-scraper = web_scraper()
-#scraper.get_categories()
-#campaign = scraper.scrape(['Medical'])
-#campaign.to_csv('campaign.csv',mode='a',index=False,header=False)
-
-campaign = pd.read_csv('campaign.csv')
-scraper.update_donations(campaign)
-
-# Merge campaign_data and donation_data on name
-
-
-
-
+    #path = 'G:\\My Drive\\codelab\\gofundme'
     
