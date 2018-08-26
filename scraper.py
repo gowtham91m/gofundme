@@ -106,7 +106,9 @@ class web_scraper:
                                          'donation_count':details['donation_count'],
                                          'duration':details['duration'],
                                          'recent_donation_time': details['recent_donation_time']}))
-            if (page%10==0):print(page,end=' ')
+            if (page%10==0):
+                print(page,end=' ')
+                --break
             page+=1
           print('\n')
         clear_output()
@@ -115,9 +117,10 @@ class web_scraper:
 
     def scrape(self,path):
         os.chdir(path)
-        campaign_data = pd.DataFrame({i:[] for i in self.campaign_columns})
-        existing_categories = []
         if 'campaigns.csv' not in os.listdir():
+            campaign_data = pd.DataFrame({i:[] for i in self.campaign_columns})
+            campaign_data = campaign_data[self.campaign_columns]
+            existing_categories = []
             campaign_data.to_csv('campaigns.csv',index=False)
         else:
             campaign_data = pd.read_csv('campaigns.csv')
@@ -129,9 +132,6 @@ class web_scraper:
                 campaigns.to_csv('campaigns.csv',mode='a',index=False,header=False)
 
 if __name__ == '__main__':
-    #path = 'G:\\My Drive\\codelab\\gofundme'
-    path = os.getcwd()
-    web_scraper().scrape(path)    
-
-    
-    
+    path = 'G:\\My Drive\\codelab\\gofundme'
+    #path = os.getcwd()
+    web_scraper().scrape(path)
