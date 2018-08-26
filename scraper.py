@@ -116,15 +116,17 @@ class web_scraper:
     def scrape(self,path):
         os.chdir(path)
         campaign_data = pd.DataFrame({i:[] for i in self.campaign_columns})
+        existing_categories = []
         if 'campaigns.csv' not in os.listdir():
             campaign_data.to_csv('campaigns.csv',index=False)
         else:
             campaign_data = pd.read_csv('campaigns.csv')
+            existing_categories = campaign_data.category.unique()
             
-            for i in self.get_categories():
-                if i not in campaign_data.category.unique():
-                    campaigns = self.get_campaigns([i])
-                    campaigns.to_csv('campaigns.csv',mode='a',index=False,header=False)
+        for i in self.get_categories():
+            if i not in existing_categories:
+                campaigns = self.get_campaigns([i])
+                campaigns.to_csv('campaigns.csv',mode='a',index=False,header=False)
 
 if __name__ == '__main__':
     path = os.getcwd()
