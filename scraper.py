@@ -50,7 +50,7 @@ class web_scraper:
           donation_count = donation[2]
           duration = ' '.join(donation[-2:])
         except:
-          donation_count = duration = 0
+          donation_count = duration = recent_donation_time = 0
 
         return({'text':text, 'likes':likes, 'photos':photos, 'shares':shares,
                 'donation_count':donation_count, 'duration':duration
@@ -129,8 +129,9 @@ class web_scraper:
                 campaigns.to_csv('campaigns.csv',mode='a',index=False,header=False)
 
 if __name__ == '__main__':
+    #path = 'G:\\My Drive\\codelab\\gofundme'
     path = os.getcwd()
     web_scraper().scrape(path)    
 
-    #path = 'G:\\My Drive\\codelab\\gofundme'
+    
     
