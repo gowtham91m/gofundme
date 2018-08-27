@@ -145,7 +145,7 @@ class web_scraper:
                                          'goal_reaeched_time':details['min_completion_time'],
                                          'script_run_time':[datetime.today().strftime("%Y-%m-%d")]*len(name) }))
             
-            if (page%1==0): break
+            #if (page%1==0): break
             page+=1
           print('\n')
         clear_output()
