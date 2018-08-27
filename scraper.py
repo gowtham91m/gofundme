@@ -19,7 +19,7 @@ import os
 class web_scraper:
     def __init__(self):
         self.url = 'https://www.gofundme.com/discover'
-        self.campaign_columns = ['category','name','href','location','goal','raised',
+        self.campaign_columns = ['category','name','href','location','start_date','goal','raised',
                                'text','likes','shares','photos','donation_count','duration',
                                  'recent_donation_time','goal_reaeched_time','script_run_time']
 
@@ -44,6 +44,14 @@ class web_scraper:
 
         try: shares = soup.findAll(class_='js-share-count-text')[0].text.strip()
         except IndexError: shares = 0
+        
+        
+        try: start_date = soup.findAll(class_='created-date')[0].text[8:]
+        except Exception as e:
+          print('error getting start date:',e)
+          start_date = e
+         
+        #start_date = 0
         raised = 0
         goal = 0
         try: 
@@ -67,7 +75,7 @@ class web_scraper:
         return({'text':text, 'likes':likes, 'photos':photos, 'shares':shares,
                 'donation_count':donation_count, 'duration':duration
                 ,'recent_donation_time':recent_donation_time,'raised':raised,
-                'goal':goal, 'min_completion_time':min_completion_time})
+                'goal':goal, 'min_completion_time':min_completion_time,'start_date':start_date})
 
     def get_min_goal_time(self,href,goal):
         goal=int(re.sub('[^\d]','',goal))
@@ -124,6 +132,7 @@ class web_scraper:
                                          'name':name,
                                          'href':href,
                                          'location':location,
+                                         'start_date':details['start_date'],
                                          'raised':details['raised'],
                                          'goal':details['goal'],
                                          'text':details['text'],
@@ -136,7 +145,7 @@ class web_scraper:
                                          'goal_reaeched_time':details['min_completion_time'],
                                          'script_run_time':[datetime.today().strftime("%Y-%m-%d")]*len(name) }))
             
-            #if (page%1==0): break
+            if (page%1==0): break
             page+=1
           print('\n')
         clear_output()
