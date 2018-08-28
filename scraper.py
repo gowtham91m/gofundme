@@ -19,8 +19,8 @@ import os
 class web_scraper:
     def __init__(self):
         self.url = 'https://www.gofundme.com/discover'
-        self.campaign_columns = ['category','name','href','location','start_date','goal','raised',
-                               'text','likes','shares','photos','donation_count','duration',
+        self.campaign_columns = ['category','page','title','href','location','start_date','goal','raised',
+                                 'text','likes','shares','photos','donation_count','duration',
                                  'recent_donation_time','goal_reaeched_time','script_run_time']
 
     def get_categories(self):
@@ -30,8 +30,10 @@ class web_scraper:
         categories = [i.text for i in category]  
         return categories[:16]
 
-    def details_parser(self,url):
+    def details_parser(self,url,category,page):
         soup=bs(requests.get(url).text,'html.parser')
+        title  = soup.findAll(class_='campaign-title')[0].text
+        location  = soup.findAll(class_='icon-link location-name js-location-link')[0].text[3:].strip()
 
         try: text = soup.findAll(class_="co-story truncate-text truncate-text--description js-truncate")[0].text.strip()
         except IndexError: text = 'exception occured for' + url
@@ -44,16 +46,12 @@ class web_scraper:
 
         try: shares = soup.findAll(class_='js-share-count-text')[0].text.strip()
         except IndexError: shares = 0
-        
-        
+           
         try: start_date = soup.findAll(class_='created-date')[0].text[8:]
         except Exception as e:
           print('error getting start date:',e)
+          #logger.error('error getting start date for category'+category+', url'+url+': e')
           start_date = e
-         
-        #start_date = 0
-        raised = 0
-        goal = 0
         try: 
           donation = soup.findAll(class_='campaign-status text-small')[0].text.strip()
           recent_donation_time = soup.findAll(class_='supporter-time')[0].text.strip()
@@ -64,18 +62,19 @@ class web_scraper:
           raised = re.findall('\$\d+.*',funds)[0]
           goal = re.findall('\$\d+.*',funds)[1].split(' ')[0]
           
-          print(url[25:],raised,'/',donation_count,' ',end='')
+          print('\n',url[25:],raised,'/',goal,'-',donation_count,' ',end='')
+          #logger.info(url[25:],raised, '/', donation_count, ' ')
           if int(re.sub('[^\d]','',raised)) >= int(re.sub('[^\d]','',goal)):
             min_completion_time = self.get_min_goal_time(url,goal)
           else:
             min_completion_time = 0
         except IndexError:
           donation_count = duration = recent_donation_time = raised = goal = min_completion_time = 0
-
-        return({'text':text, 'likes':likes, 'photos':photos, 'shares':shares,
-                'donation_count':donation_count, 'duration':duration
-                ,'recent_donation_time':recent_donation_time,'raised':raised,
-                'goal':goal, 'min_completion_time':min_completion_time,'start_date':start_date})
+          
+        return OrderedDict({'category':category,'page':page,'title':title, 'href':url, 'location':location,'start_date':start_date ,'goal':goal 
+                            ,'raised':raised, 'text':text ,'likes':likes,'shares':shares, 'photos':photos,  'donation_count':donation_count
+                            ,'duration':duration, 'recent_donation_time':recent_donation_time , 'goal_reaeched_time':min_completion_time
+                            ,'script_run_time':datetime.today().strftime("%Y-%m-%d")})
 
     def get_min_goal_time(self,href,goal):
         goal=int(re.sub('[^\d]','',goal))
@@ -93,83 +92,68 @@ class web_scraper:
             donation = donation + dn
             time_gap = time_gap+ [i.text[:-4] for i in soup.findAll(class_='supporter-time')]
             idx+=10
-            if idx%100==0:print('.',end='')
-        print('\n')
+            if idx%100==0:
+              print('.',end='')
         l=[int(re.sub('[^\d]','',i)) for i in donation[::-1]]
         d=list(accumulate(l))
         for i in range(len(d)):
           if d[i]>goal:
             return time_gap[-i-1]
+    
+    def read_data(self, path = os.getcwd()):
+      os.chdir(path)
+      if 'campaigns.csv' not in os.listdir():
+            campaign_data = pd.DataFrame(OrderedDict({i:[] for i in self.campaign_columns}))
+            campaign_data.to_csv('campaigns.csv',index=False)
+      else:
+            campaign_data = pd.read_csv('campaigns.csv')
+      return campaign_data
+      
 
     def get_campaigns(self,categories = 'all'):
         start_time = time()
         df = pd.DataFrame({})
         if categories == 'all':
           categories = self.get_categories()
+        campaigns =self.read_data()
         for i in categories:
           print(i,end='  ')
+          #logger.info(i)
           i='-'.join(i.split(' '))
           i = 'animal' if i == 'Animals' else i
           url = 'https://www.gofundme.com/discover/'+i+'-fundraiser'
           soup = bs(requests.get(url).text,'html.parser')
           cid = re.findall('\d+',re.findall('cid=\'\s\+\s\'\d+', soup.find_all('script')[13].text)[0])[0]
-          page = 1
+          if campaigns.loc[campaigns.category==i].shape[0]>0:
+            page = campaigns.loc[campaigns.category ==i,'page'].max()+1
+          else:
+            page = 1
+            
           while True:
-            print(page)
+            print('\n',page)
+            #logger.info(page)
             url = 'https://www.gofundme.com/mvc.php?route=categorypages/load_more&page='+str(page)+'&term=&cid='+cid
             soup = requests.get(url)
             soup = bs(soup.text, 'html.parser')
             if len(soup) <1: break
-            name = [ hit.text  for hit in soup.findAll(attrs={'class' : 'fund-title truncate-single-line show-for-medium'})]
-            href = [i['href'] for i in soup.findAll('a',attrs={'class':'campaign-tile-img--contain'})]
-            location = [i.text[1:-1] for i in soup.findAll(class_='fund-item fund-location truncate-single-line')]
             details =defaultdict(list)
-            for link in soup.findAll('a',attrs={'class':'campaign-tile-img--contain'}):
-              for key, value in self.details_parser(link['href']).items():
+            href = [i['href'] for i in soup.findAll('a',attrs={'class':'campaign-tile-img--contain'})]
+            for link in href:
+              for key, value in self.details_parser(link,i,page).items():
                 details[key].append(value)
+            if len(details)>0:   
+              df = pd.DataFrame(details)[self.campaign_columns]
+              df.to_csv('campaigns.csv',index=False,header=False,mode='a')
             
-            df = df.append(pd.DataFrame({'category':[i]*len(name),
-                                         'name':name,
-                                         'href':href,
-                                         'location':location,
-                                         'start_date':details['start_date'],
-                                         'raised':details['raised'],
-                                         'goal':details['goal'],
-                                         'text':details['text'],
-                                         'likes':details['likes'],
-                                         'shares':details['shares'],
-                                         'photos':details['photos'],
-                                         'donation_count':details['donation_count'],
-                                         'duration':details['duration'],
-                                         'recent_donation_time': details['recent_donation_time'],
-                                         'goal_reaeched_time':details['min_completion_time'],
-                                         'script_run_time':[datetime.today().strftime("%Y-%m-%d")]*len(name) }))
-            
-            #if (page%1==0): break
-            page+=1
+            #if (page%50==0):break
+            page+=1        
+                
           print('\n')
-        clear_output()
+        #clear_output()
         print('campaigns scrape time', time()-start_time)
-        return df[self.campaign_columns]
-
-    def scrape(self,path):
-        os.chdir(path)
-        if 'campaigns.csv' not in os.listdir():
-            campaign_data = pd.DataFrame({i:[] for i in self.campaign_columns})
-            campaign_data = campaign_data[self.campaign_columns]
-            existing_categories = []
-            campaign_data.to_csv('campaigns.csv',index=False)
-        else:
-            campaign_data = pd.read_csv('campaigns.csv')
-            existing_categories = campaign_data.category.unique()
-            
-        for i in self.get_categories():
-            if i not in existing_categories:
-                campaigns = self.get_campaigns([i])
-                campaigns.to_csv('campaigns.csv',mode='a',index=False,header=False)
-
+        #logger('campaigns scrape time', time()-start_time)
 
 if __name__ == '__main__':
     path = 'G:\\My Drive\\codelab\\gofundme'
     #path = os.getcwd()
-    web_scraper().scrape(path)
+    web_scraper().get_campaigns(['Medical'])
