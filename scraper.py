@@ -67,7 +67,7 @@ class web_scraper:
           if int(re.sub('[^\d]','',raised)) >= int(re.sub('[^\d]','',goal)):
             min_completion_time = self.get_min_goal_time(url,goal)
           else:
-            min_completion_time = 0
+            min_completion_time = -1
         except IndexError:
           donation_count = duration = recent_donation_time = raised = goal = min_completion_time = 0
           
