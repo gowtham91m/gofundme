@@ -21,7 +21,7 @@ class web_scraper:
         self.url = 'https://www.gofundme.com/discover'
         self.campaign_columns = ['category','page','title','href','location','start_date','goal','raised',
                                  'text','likes','shares','photos','donation_count','duration',
-                                 'recent_donation_time','goal_reaeched_time','script_run_time']
+                                 'recent_donation_time','goal_reaeched_time','script_run_date']
 
     def get_categories(self):
         soup = requests.get(self.url)
@@ -74,7 +74,7 @@ class web_scraper:
         return OrderedDict({'category':category,'page':page,'title':title, 'href':url, 'location':location,'start_date':start_date ,'goal':goal 
                             ,'raised':raised, 'text':text ,'likes':likes,'shares':shares, 'photos':photos,  'donation_count':donation_count
                             ,'duration':duration, 'recent_donation_time':recent_donation_time , 'goal_reaeched_time':min_completion_time
-                            ,'script_run_time':datetime.today().strftime("%Y-%m-%d")})
+                            ,'script_run_date':datetime.today().strftime("%Y-%m-%d")})
 
     def get_min_goal_time(self,href,goal):
         goal=int(re.sub('[^\d]','',goal))
